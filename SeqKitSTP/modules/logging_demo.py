@@ -1,4 +1,4 @@
-# logging_demo.py
+# modules/logging_demo.py
 """
 LOGGING DEMONSTRATION SCRIPT
 
@@ -11,16 +11,53 @@ by retrieving a logger and using different log levels.
 ----------------------------------------
 IMPORTANT CONCEPT
 ----------------------------------------
-Logging is configured centrally (in logger.py).
+Logging is configured centrally at the top level of
+the package (in SeqKitSTP.logger).
 
-Here, we DO NOT import a logger object.
-Instead, we retrieve it using:
+In this module (e.g. SeqKitSTP.modules.*), we DO NOT
+create or configure logging again.
 
-    logging.getLogger("SeqKitSTP")
+Instead, we retrieve a module-specific logger using:
 
-This ensures:
-✔ All files use the same logger
-✔ Logging remains consistent across the project
+    logging.getLogger(__name__)
+
+✔ Python automatically assigns a name based on the
+  module path (e.g. SeqKitSTP.modules.logging_demo)
+
+✔ This logger is part of the hierarchy rooted at
+  the top-level SeqKitSTP configuration
+
+✔ Because logging was already initialised at import:
+    from SeqKitSTP import logger
+
+  → all modules automatically inherit:
+    - log level
+    - handlers
+    - formatting
+
+✔ Unless a logger is explicitly defined in settings.py,
+  this module logger simply inherits behaviour from
+  the ROOT logger
+
+----------------------------------------
+KEY DESIGN PRINCIPLE
+----------------------------------------
+
+✔ Configure logging ONCE at the top-level package
+✔ Use logging everywhere via getLogger(__name__)
+✔ Let inheritance handle consistency
+
+----------------------------------------
+FRAMEWORK / WEB APP NOTE
+----------------------------------------
+
+✔ In larger applications (e.g. web apps):
+  - The parent application may override logging
+  - Your module-level loggers will integrate naturally
+
+✔ This works because:
+  - logger names follow the package hierarchy
+  - configuration is centralised and inheritable
 
 ----------------------------------------
 LOGGING LEVELS DEMONSTRATED
@@ -31,9 +68,6 @@ WARNING  → Something unexpected, but program continues
 ERROR    → Something failed during execution
 CRITICAL → Serious failure, program may stop
 """
-
-# Step 1: Import the logging setup (this runs configuration once)
-from SeqKitSTP import logger  # ensures logging is configured
 
 # Step 2: Get the logger (this is the key idea)
 import logging

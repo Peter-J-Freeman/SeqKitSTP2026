@@ -8,9 +8,11 @@ WHAT THIS TEACHES
 ✔ Centralised logging configuration
 ✔ Safe file handling
 ✔ Defensive programming
+✔ Logger naming conventions (important in real systems)
 
 KEY IDEA:
-Even when things seem simple, we still validate inputs.
+Even when things seem simple, we still validate inputs
+and design logging for clarity, consistency, and extensibility.
 """
 
 import os
@@ -21,15 +23,12 @@ import os
 home_dir = os.path.expanduser("~")
 DEFAULT_LOG = os.path.join(home_dir, ".seqkitstp.log")
 
-# In this teaching example, we don't read config yet,
-# but we structure this so it could be extended later
 LOG_FILE = DEFAULT_LOG
 
 
 # --------------------------------------------------
 # STEP 2: NORMALISE the path (defensive step)
 # --------------------------------------------------
-# Handles "~", relative paths, etc.
 LOG_FILE = os.path.abspath(os.path.expanduser(LOG_FILE))
 
 
@@ -48,6 +47,9 @@ LOGGING_CONFIG = {
     "version": 1,
     "disable_existing_loggers": False,
 
+    # --------------------------------------------------
+    # FORMATTERS
+    # --------------------------------------------------
     "formatters": {
         "standard": {
             "format": (
@@ -57,6 +59,9 @@ LOGGING_CONFIG = {
         }
     },
 
+    # --------------------------------------------------
+    # HANDLERS
+    # --------------------------------------------------
     "handlers": {
         "console": {
             "class": "logging.StreamHandler",
@@ -71,6 +76,74 @@ LOGGING_CONFIG = {
         },
     },
 
+    # --------------------------------------------------
+    # OPTIONAL: NAMED LOGGER (TEACHING EXAMPLE)
+    # --------------------------------------------------
+    # Why define a named logger?
+    # - Gives fine-grained control over specific parts of your app
+    # - Lets you tune verbosity per module/package
+    #
+    # BEST PRACTICE:
+    # - Name your logger after your *top-level package*
+    #   e.g. package: seqkitstp → logger: "seqkitstp"
+    #
+    # WHY?
+    # - Keeps logs consistent and predictable
+    # - Makes filtering/searching easier
+    # - Matches how logging.getLogger(__name__) resolves names
+    #
+    # HOWEVER:
+    # You can deliberately override naming if it improves clarity.
+    #
+    # Example:
+    # - Your package is "seqkitstp"
+    # - But you want cleaner logs → use "SeqKit"
+    #
+    # Trade-off:
+    # ✔ Cleaner log labels
+    # ✖ Slightly less direct mapping to Python module paths
+    #
+
+
+    "loggers": {
+        "SeqKitSTP": {
+
+            # The logging level for this specific logger
+            # DEBUG = capture EVERYTHING (lowest threshold)
+            # Helps when you want deep visibility into this component
+            "level": "DEBUG",
+
+            # Handlers define *where* the logs go:
+            # - "console" → terminal/stdout (human-readable, immediate)
+            # - "file"    → persistent storage for later analysis
+            #
+            # Multiple handlers = same message sent to multiple destinations
+            "handlers": ["console", "file"],
+
+            # propagate controls whether logs "bubble up" to parent loggers
+            #
+            # False (recommended here):
+            # - prevents duplicate log entries
+            # - ensures this logger is self-contained
+            # - useful when you explicitly define handlers for this logger
+            #
+            # True would:
+            # - pass logs to parent/root loggers as well
+            # - can cause duplicate messages if those loggers use the same handlers
+            #
+            # NOTE (important in real systems):
+            # - This can be intentionally overridden when your code is used as a library
+            # - e.g. if SeqKitSTP is imported into a larger application (CLI, web app)
+            #   the parent application may want to control logging centrally
+            # - In that case, setting propagate=True allows integration into the host app’s logging
+
+            "propagate": False
+        },
+    },
+
+    # --------------------------------------------------
+    # ROOT LOGGER
+    # --------------------------------------------------
     "root": {
         "level": "DEBUG",
         "handlers": ["console", "file"],
