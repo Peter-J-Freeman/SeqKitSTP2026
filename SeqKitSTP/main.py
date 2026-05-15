@@ -5,118 +5,198 @@ MAIN ENTRY POINT FOR SeqKitSTP
 ----------------------------------------
 PURPOSE
 ----------------------------------------
-This script acts as the application entry point.
+This file acts as the application entry point.
 
-It ensures:
-✔ Logging is initialised once at startup
-✔ Modules are then safely executed
-✔ Logging behaviour is consistent across the application
+It is responsible for:
+
+✔ Initialising logging once at startup
+✔ Importing and coordinating application modules
+✔ Running the sequence formatting workflow
+
+In this project, the workflow is:
+
+raw DNA sequence
+    → chunk into fixed-size blocks
+    → group blocks into GenBank-style rows
+    → render printable GenBank sequence text
 
 ----------------------------------------
-STRUCTURE OVERVIEW
+LOGGING DESIGN
 ----------------------------------------
 
-Step 1 → Initialise logging (EXPLICIT CALL)
-Step 2 → Import/use application modules
-Step 3 → Execute program logic
-
-----------------------------------------
-IMPORTANT DESIGN PRINCIPLE
-----------------------------------------
-
-✔ Logging MUST be configured once, at the start of main()
+Logging is configured centrally.
 
 Why?
 
-- logging.config.dictConfig(...) overwrites configuration
-- Calling it multiple times can:
-  → reset handlers
-  → duplicate outputs
-  → create inconsistent logging behaviour
+logging.config.dictConfig(...) replaces existing logging
+configuration. Calling it repeatedly can:
+
+→ reset handlers
+→ duplicate output
+→ create inconsistent behaviour
 
 Therefore:
-✔ Call setup_logging() ONCE at the beginning
-✔ Do NOT call it in multiple modules
+
+✔ setup_logging() is called once at startup
+✔ modules do NOT configure logging themselves
 
 ----------------------------------------
-HOW LOGGING WORKS AFTER SETUP
+HOW MODULE LOGGERS WORK
 ----------------------------------------
 
-✔ After setup_logging() runs:
+After logging is configured:
 
-- All modules use:
+- modules use:
       logging.getLogger(__name__)
 
-- Python creates loggers based on module paths:
-      SeqKitSTP.modules.logging_demo
+- Python builds a logger hierarchy from module paths
 
-- These loggers then:
-  → inherit configuration from the ROOT logger
-  → use the same handlers, levels, and formatters
+Example:
+      SeqKitSTP.modules.chunk_text
 
-✔ This means:
-- We DO NOT pass logger objects around
-- We DO NOT configure logging in modules
+Those module loggers then inherit configuration from
+the root logger.
 
-✔ Instead:
-- We rely entirely on:
-      getLogger(__name__)
-  + central configuration
+That means:
+
+✔ shared handlers
+✔ shared formatter
+✔ shared log level
+
+So we do not pass logger objects around and we do not
+configure logging inside individual modules.
 
 ----------------------------------------
-TEACHING TAKEAWAY
+SUMMARY
 ----------------------------------------
 
-✔ Configure once → at application start
-✔ Never reconfigure → prevents overwriting
-✔ Use __name__ everywhere → automatic hierarchy
-
-→ Simple, safe, and scalable logging
+Configure once → application start
+Use __name__ → automatic logger hierarchy
+Import modules normally → they inherit logging behaviour
 """
 
+
 # --------------------------------------------------
-# STEP 1: Import logging setup function
+# STEP 1 — Import logging setup
 # --------------------------------------------------
-# No side effects — this only imports the function
+"""
+Logging must be initialised before application code runs.
+
+This ensures all later logger calls use the same
+configuration.
+"""
 
 from SeqKitSTP.logger import setup_logging
+import logging
+
+
+# Configure logging once for the whole application.
+# This is intentionally done at module startup.
+setup_logging()
+
+
+# Create a logger for this module.
+# __name__ will usually be:
+# "main" when run directly
+# or module path when imported elsewhere
+logger = logging.getLogger(__name__)
 
 
 # --------------------------------------------------
-# STEP 2: Import application modules
+# STEP 2 — Import application modules
 # --------------------------------------------------
-# These modules will create loggers using __name__,
-# but they will only behave correctly AFTER setup_logging()
+"""
+These modules create their own loggers using __name__.
 
-from SeqKitSTP.modules import logging_demo
+Because setup_logging() has already run, their loggers
+will inherit the configured handlers, levels and formatters.
+"""
+
+from SeqKitSTP.modules import chunk_text, genbank_style
 
 
 # --------------------------------------------------
-# STEP 3: Main execution function
+# Main application function
 # --------------------------------------------------
-def main():
+def to_genbank_format(dna_string):
     """
-    Main application entry point.
+    Convert a raw DNA sequence into printable GenBank-style text.
 
-    Responsibilities:
-    ✔ Initialise logging ONCE
-    ✔ Run application logic
+    Workflow:
+        1. Remove whitespace
+        2. Convert to lowercase
+        3. Split into 10-base chunks
+        4. Group into rows of 6 blocks (60 bases per row)
+        5. Add GenBank-style left-hand coordinates
 
-    IMPORTANT:
-    setup_logging() MUST be called before any logging is used
+    Parameters:
+    dna_string (str):
+        Raw DNA sequence input. May contain whitespace,
+        line breaks or wrapped sequence text.
+
+    Returns:
+    str:
+        Formatted GenBank-style sequence block.
     """
 
-    # Initialise logging (CRITICAL STEP)
-    setup_logging()
+    # Record the first transformation stage.
+    logger.info("Split into blocks")
 
-    # Run demo module
-    logging_demo.logging_demo()
+    # chunk_string_to_blocks() performs:
+    #
+    # - whitespace removal
+    # - lowercase conversion
+    # - chunk into 10-base blocks
+    # - 6 blocks per printed row
+    #
+    # Example output:
+    # [
+    #     ['atgc...', '....'],
+    #     ['....']
+    # ]
+    chunked_string = chunk_text.chunk_string_to_blocks(
+        dna_string,
+        10,
+        6
+    )
+
+    # Record formatting stage.
+    logger.info("Format into Genbank Style")
+
+    # Convert nested chunk structure into final printable text.
+    return genbank_style.create_genbank_style(chunked_string)
 
 
 # --------------------------------------------------
-# ENTRY POINT GUARD
+# Script entry point
 # --------------------------------------------------
-# Ensures this script only runs when executed directly
+"""
+This block runs only when the file is executed directly.
+
+It does not run when this module is imported elsewhere.
+"""
 
 if __name__ == "__main__":
-    main()
+
+    # Example DNA sequence.
+    # Multi-line input is acceptable because whitespace
+    # is removed by chunk_string_to_blocks().
+    dna_string = (
+        """
+        GCTGAGACTTCCTGGACGGGGGACAGGCTGTGGGGTTTCTCAGATAACTGGGCCCCTGCGCTCAGGAGGC
+        CTTCACCCTCTGCTCTGGGTAAAGTTCATTGGAACAGAAAGAAATGGATTTATCTGCTCTTCGCGTTGAA
+        GAAGTACAAAATGTCATTAATGCTATGCAGAAAATCTTAGAGTGTCCCATCTGTCTGGAGTTGATCAAGG
+        AACCTGTCTCCACAAAGTGTGACCACATATTTTGCAAATTTTGCATGCTGAAACTTCTCAACCAGAAGAA
+        AGGGCCTTCACAGTGTCCTTTATGTAAGAATGATATAACCAAAAGGAGCCTACAAGAAAGTACGAGATTT
+        AGTCAACTTGTTGAAGAGCTATTGAAAATCATTTGTGCTTTTCAGCTTGACACAGGTTTGGAGTATGCAA
+        ACAGCTATAATTTTGCAAAAAAGGAAAATAACTCTCCTGAACATCTAAAAGATGAAGTTTCTATCATCCA
+        AAGTATGGGCTACAGAAACCGTGCCAAAAGACTTCTACAGAGTGAACCCGAAAATCCTTCCTTGCAGGAA
+        ACCAGTCTCAGTGTCCAACTCTCTAACCTTGGAACTGTGAGAACTCTGAGGACAAAGCAGCGGATACAAC
+        CTCAAAAGACGTCTGTCTACATTGAATTGGGATCTGATTCTTCTGAAGATACCGTTAATAAGGCAACTTA
+        TTGCAGTGTGGGAGATCAAG
+        """
+    )
+
+    # Run the formatting pipeline and print the result.
+    print(to_genbank_format(dna_string))
+

@@ -9,6 +9,7 @@ WHAT THIS TEACHES
 ✔ Safe file handling
 ✔ Defensive programming
 ✔ Logger naming conventions (important in real systems)
+✔ Log rotation (preventing uncontrolled file growth)
 
 KEY IDEA:
 Even when things seem simple, we still validate inputs
@@ -68,75 +69,78 @@ LOGGING_CONFIG = {
             "level": "INFO",
             "formatter": "standard",
         },
+
+        # --------------------------------------------------
+        # ROTATING FILE HANDLER (UPDATED)
+        # --------------------------------------------------
+        #
+        # This replaces the basic FileHandler with a
+        # RotatingFileHandler to prevent unlimited growth.
+        #
         "file": {
-            "class": "logging.FileHandler",
-            "level": "DEBUG",
+            "class": "logging.handlers.RotatingFileHandler",
+
+            # Only store ERROR and CRITICAL messages in file
+            # (keeps disk usage focused on important events)
+            "level": "ERROR",
+
             "formatter": "standard",
             "filename": LOG_FILE,
+
+            # --------------------------------------------------
+            # ROTATION SETTINGS (IMPORTANT TEACHING POINT)
+            # --------------------------------------------------
+            #
+            # maxBytes:
+            # Maximum size of the log file BEFORE rotation happens.
+            #
+            # Example:
+            # 1_048_576 bytes = 1 MB
+            #
+            # Here we set a small size for demonstration.
+            #
+            "maxBytes": 1024 * 50,  # 50 KB
+
+            #
+            # backupCount:
+            # Number of OLD log files to retain.
+            #
+            # Example with backupCount = 3:
+            #
+            # Files will look like:
+            #   .seqkitstp.log      (current active log)
+            #   .seqkitstp.log.1    (most recent previous)
+            #   .seqkitstp.log.2
+            #   .seqkitstp.log.3    (oldest retained)
+            #
+            # When rotation occurs:
+            #   .log.3 is deleted
+            #   .log.2 → becomes .log.3
+            #   .log.1 → becomes .log.2
+            #   .log   → becomes .log.1
+            #   new empty .log is created
+            #
+            "backupCount": 3,
+
+            # Optional: ensures file opens safely even if reused
+            "encoding": "utf-8",
         },
     },
 
-    # --------------------------------------------------
-    # OPTIONAL: NAMED LOGGER (TEACHING EXAMPLE)
-    # --------------------------------------------------
-    # Why define a named logger?
-    # - Gives fine-grained control over specific parts of your app
-    # - Lets you tune verbosity per module/package
-    #
-    # BEST PRACTICE:
-    # - Name your logger after your *top-level package*
-    #   e.g. package: seqkitstp → logger: "seqkitstp"
-    #
-    # WHY?
-    # - Keeps logs consistent and predictable
-    # - Makes filtering/searching easier
-    # - Matches how logging.getLogger(__name__) resolves names
-    #
-    # HOWEVER:
-    # You can deliberately override naming if it improves clarity.
-    #
-    # Example:
-    # - Your package is "seqkitstp"
-    # - But you want cleaner logs → use "SeqKit"
-    #
-    # Trade-off:
-    # ✔ Cleaner log labels
-    # ✖ Slightly less direct mapping to Python module paths
-    #
-
-
+    # ---------------------------------------------------------------------------------------
+    # OPTIONAL: NAMED LOGGER (TEACHING EXAMPLE) - But easy to import into other tools by name
+    # ---------------------------------------------------------------------------------------
     "loggers": {
         "SeqKitSTP": {
 
-            # The logging level for this specific logger
-            # DEBUG = capture EVERYTHING (lowest threshold)
-            # Helps when you want deep visibility into this component
+            # Capture everything at this level;
+            # handlers will decide what gets written
             "level": "DEBUG",
 
-            # Handlers define *where* the logs go:
-            # - "console" → terminal/stdout (human-readable, immediate)
-            # - "file"    → persistent storage for later analysis
-            #
-            # Multiple handlers = same message sent to multiple destinations
+            # Send logs to both console and rotating file
             "handlers": ["console", "file"],
 
-            # propagate controls whether logs "bubble up" to parent loggers
-            #
-            # False (recommended here):
-            # - prevents duplicate log entries
-            # - ensures this logger is self-contained
-            # - useful when you explicitly define handlers for this logger
-            #
-            # True would:
-            # - pass logs to parent/root loggers as well
-            # - can cause duplicate messages if those loggers use the same handlers
-            #
-            # NOTE (important in real systems):
-            # - This can be intentionally overridden when your code is used as a library
-            # - e.g. if SeqKitSTP is imported into a larger application (CLI, web app)
-            #   the parent application may want to control logging centrally
-            # - In that case, setting propagate=True allows integration into the host app’s logging
-
+            # Prevent duplication from parent/root loggers
             "propagate": False
         },
     },
